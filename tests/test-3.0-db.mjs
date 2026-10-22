@@ -22,6 +22,8 @@ assert((await XianyuDB.getAssets("task-1", 1)).length === 1, "分卷资源写入
 await XianyuDB.clearPartAssets("task-1", 1);
 assert((await XianyuDB.getAssets("task-1", 1)).length === 0, "下载后资源释放失败");
 assert(XianyuDB.DB_NAME === "xianyuCollectorV3", "V3 未使用独立数据库");
+const blockingTask = await XianyuDB.getTask("task-1");
+assert(blockingTask?.taskId === "task-1", "只读事务未能在请求完成后可靠结束");
 for (let index = 0; index < 21; index += 1) await XianyuDB.saveTask({ taskId: `retain-${index}`, createdAt: new Date(Date.UTC(2026, 7, 4, 0, 0, index)).toISOString() });
 await XianyuDB.pruneTasks(Date.UTC(2026, 7, 4, 1));
 assert((await XianyuDB.listTasks(99)).length === 20 && !(await XianyuDB.getTask("task-1")), "最近20个任务清理规则错误");

@@ -54,8 +54,9 @@
     const database = await open();
     try {
       const transaction = database.transaction(names, mode);
+      const done = transactionDone(transaction);
       const result = await callback(transaction);
-      await transactionDone(transaction);
+      await done;
       return result;
     } finally {
       database.close();

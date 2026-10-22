@@ -8,7 +8,7 @@ function pageName(type) {
 }
 
 async function init() {
-  page = await chrome.runtime.sendMessage({ action: "GET_ACTIVE_PAGE" });
+  page = await chrome.runtime.sendMessage({ action: "GET_ACTIVE_PAGE" }).catch((error) => ({ ok: false, error: error.message }));
   if (!page?.ok || !["item", "shop", "search"].includes(page.type)) {
     $("pageState").textContent = "当前不是可采集页面，请选择下方入口前往闲鱼。";
     return;
@@ -19,7 +19,7 @@ async function init() {
 document.querySelectorAll(".entry").forEach((button) => button.addEventListener("click", async () => {
   const type = button.dataset.type;
   if (page?.ok && page.type === type) {
-    const response = await chrome.runtime.sendMessage({ action: "OPEN_TASK_PAGE", sourceTabId: page.tabId, type });
+    const response = await chrome.runtime.sendMessage({ action: "OPEN_TASK_PAGE", sourceTabId: page.tabId, type }).catch((error) => ({ ok: false, error: error.message }));
     if (response?.ok) window.close();
     else $("pageState").textContent = response?.error || "无法打开任务页";
     return;
@@ -30,11 +30,16 @@ document.querySelectorAll(".entry").forEach((button) => button.addEventListener(
     search: "当前不是搜索结果页。是否打开闲鱼搜索页？"
   };
   if (!confirm(prompts[type])) return;
-  await chrome.tabs.create({ url: type === "search" ? "https://www.goofish.com/search" : "https://www.goofish.com/" });
-  window.close();
+  try {
+    await chrome.tabs.create({ url: type === "search" ? "https://www.goofish.com/search" : "https://www.goofish.com/" });
+    window.close();
+  } catch (error) {
+    $("pageState").textContent = error.message;
+  }
 }));
 $("recentTasks").addEventListener("click", async () => {
-  const response = await chrome.runtime.sendMessage({ action: "OPEN_TASK_PAGE", type: "recent" });
+  const response = await chrome.runtime.sendMessage({ action: "OPEN_TASK_PAGE", type: "recent" }).catch(() => null);
   if (response?.ok) window.close();
+  else $("pageState").textContent = response?.error || "无法打开任务页";
 });
 init().catch((error) => { $("pageState").textContent = error.message; });
