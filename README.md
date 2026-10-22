@@ -1,6 +1,8 @@
 # Xianyu Collector
 
-A Chrome Manifest V3 extension for organising publicly visible listings on Xianyu (Goofish). This repository is the open-source edition of the extension. It does not include the commercial licence server, activation keys, administrative tools, customer data, purchase links or marketing material.
+[简体中文](README.zh-CN.md) | English
+
+A Chrome Manifest V3 extension for organising publicly visible listings on Xianyu (Goofish). This repository is the open-source edition of the extension. It does not include the commercial licence server, activation keys, administrative tools, customer data, purchase links or marketing material. The extension UI is currently in Simplified Chinese.
 
 Users pick one of three entry points from the popup:
 
