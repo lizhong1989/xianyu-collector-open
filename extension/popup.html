@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>闲鱼采集器</title><link rel="stylesheet" href="popup.css"></head>
+<body><main class="panel">
+  <h1>闲鱼采集器 <span>3.0</span></h1>
+  <div id="pageState" class="page-state">正在识别当前页面…</div>
+  <div class="entries">
+    <button class="primary entry" data-type="item">商品采集</button>
+    <button class="primary entry" data-type="shop">店铺采集</button>
+    <button class="primary entry" data-type="search">搜索商品采集</button>
+  </div>
+  <p class="hint">单商品直接采集完整文案和图片；店铺、搜索先导出基础数据，筛选后再深度采集。</p>
+  <button id="recentTasks" class="link">最近任务</button>
+  <div id="updateNotice" class="notice" hidden></div>
+</main><script src="config.js"></script><script src="popup.js"></script></body>
+</html>

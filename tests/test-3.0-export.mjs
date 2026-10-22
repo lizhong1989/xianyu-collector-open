@@ -1,0 +1,51 @@
+import fs from "node:fs";
+import vm from "node:vm";
+
+const context = vm.createContext({ console, Blob, Uint8Array, ArrayBuffer, Date, Math, setTimeout, clearTimeout, setImmediate, clearImmediate, globalThis: null });
+context.globalThis = context;
+const base = new URL("../extension/", import.meta.url);
+for (const file of ["model.js", "vendor/xlsx.full.min.js", "vendor/jszip.min.js", "export.js"]) vm.runInContext(fs.readFileSync(new URL(file, base), "utf8"), context, { filename: file });
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+const product = { itemId: "1", url: "https://www.goofish.com/item?id=1", title: "=危险标题", description: "原始第一行\n原始第二行", price: 99, status: "on_sale", imageCount: 1, imagePaths: ["1_危险标题/1_001.jpg"], sourceType: "item", sourceUrl: "https://www.goofish.com/item?id=1", collectedAt: "2026-08-03T00:00:00Z", resultStatus: "success" };
+const task = { taskId: "task", type: "item", sourceUrl: product.url, requestedBatches: 1, actualBatches: 1, discoveredCount: 1, successCount: 1, partialCount: 0, failedCount: 0, startedAt: "2026-08-03T00:00:00Z", completedAt: "2026-08-03T00:01:00Z" };
+const bytes = context.XianyuExport.workbookBytes(task, [product], [], 1, 1);
+const workbook = context.XLSX.read(bytes);
+assert(workbook.SheetNames.join(",") === "商品数据,失败清单,任务说明", "XLSX 工作表契约错误");
+const rows = context.XLSX.utils.sheet_to_json(workbook.Sheets["商品数据"]);
+assert(rows[0].标题 === "'=危险标题" && workbook.Sheets["商品数据"]["B2"].l.Target === product.url, "公式注入防护或超链接错误");
+const markdown = context.XianyuExport.markdownFor(product);
+assert(markdown === "# =危险标题\n\n原始第一行\n原始第二行\n" && !markdown.includes("99"), "Markdown 内容契约错误");
+const assetPath = `${context.XianyuExport.directoryFor(product)}/1_001.jpg`;
+const zipBlob = await context.XianyuExport.buildPart(task, [product], [], [{ path: assetPath, blob: new Uint8Array([0xff, 0xd8, 0xff]) }], 1, 1);
+const zip = await context.JSZip.loadAsync(await zipBlob.arrayBuffer());
+const entries = Object.keys(zip.files);
+assert(entries.includes("商品数据.xlsx") && entries.includes(assetPath) && entries.some((value) => value.endsWith("1_商品文案.md")), "ZIP 目录契约错误");
+assert(context.XianyuExport.packageName(task, 1, 3).endsWith("part001-of003.zip"), "分卷文件名错误");
+const screeningTask = { ...task, taskId: "screen-1", type: "shop", mode: "screening", discoveredCount: 1 };
+const screeningBytes = context.XianyuExport.screeningWorkbookBytes(screeningTask, [{ itemId: "1", url: product.url, title: "商品", price: 99, status: "on_sale" }], []);
+const screeningBook = context.XLSX.read(screeningBytes, { type: "array", cellStyles: true });
+const screeningRows = context.XLSX.utils.sheet_to_json(screeningBook.Sheets["商品数据"], { defval: "" });
+assert(screeningBook.SheetNames.join(",") === "商品数据,失败清单,任务说明" && Object.hasOwn(screeningRows[0], "是否导出详细数据"), "快速筛选工作簿契约错误");
+assert(Object.keys(screeningRows[0]).join(",") === "商品ID,标题,价格,列表状态,想要数,卖家名称,商品URL,列表预览图地址,是否导出详细数据,来源任务ID", "快速筛选列顺序错误");
+assert(screeningBook.Sheets["商品数据"]["!cols"].length === 10 && screeningBook.Sheets["商品数据"]["!autofilter"].ref === "A1:J2", "快速筛选列宽或筛选设置错误");
+assert(screeningBook.Sheets["商品数据"]["A2"].t === "s" && screeningBook.Sheets["商品数据"]["A2"].z === "@", "商品ID必须按文本单元格输出");
+screeningRows[0].是否导出详细数据 = " YES ";
+const selectedBook = context.XLSX.utils.book_new();
+context.XLSX.utils.book_append_sheet(selectedBook, context.XLSX.utils.json_to_sheet(screeningRows), "商品数据");
+context.XLSX.utils.book_append_sheet(selectedBook, screeningBook.Sheets["失败清单"], "失败清单");
+context.XLSX.utils.book_append_sheet(selectedBook, screeningBook.Sheets["任务说明"], "任务说明");
+const selected = context.XianyuExport.parseScreeningSelection(context.XLSX.write(selectedBook, { bookType: "xlsx", type: "array" }));
+assert(selected.taskId === "screen-1" && selected.selectedItemIds.join(",") === "1", "筛选 Excel 标记解析错误");
+let emptySelectionRejected = false;
+try { context.XianyuExport.parseScreeningSelection(screeningBytes); } catch (error) { emptySelectionRejected = error.message.includes("没有商品"); }
+assert(emptySelectionRejected, "无标记 Excel 必须拒绝");
+const legacyRows = [{ ...screeningRows[0], 导出图片: "是" }];
+delete legacyRows[0].是否导出详细数据;
+const legacyBook = context.XLSX.utils.book_new();
+context.XLSX.utils.book_append_sheet(legacyBook, context.XLSX.utils.json_to_sheet(legacyRows), "商品数据");
+context.XLSX.utils.book_append_sheet(legacyBook, screeningBook.Sheets["任务说明"], "任务说明");
+let legacyRejected = false;
+try { context.XianyuExport.parseScreeningSelection(context.XLSX.write(legacyBook, { bookType: "xlsx", type: "array" })); } catch (error) { legacyRejected = error.message.includes("是否导出详细数据"); }
+assert(legacyRejected, "旧“导出图片”列必须拒绝");
+console.log("3.0 三工作表 XLSX、公式防护、Markdown 和分卷 ZIP 通过。");

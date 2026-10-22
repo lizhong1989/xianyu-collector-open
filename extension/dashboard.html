@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>闲鱼采集器 3.0</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header><div><h1>闲鱼采集器 <span>3.0</span></h1><p>单商品完整采集 · 店铺/搜索数据先行</p></div></header>
+  <main>
+    <section class="card">
+      <h2 id="newTaskTitle">新建采集任务</h2>
+      <p id="sourceInfo" class="muted">正在读取来源页面…</p>
+      <div class="options">
+        <label id="soldOption" hidden><input id="includeSold" type="checkbox"> 包含已卖出商品</label>
+        <label id="batchOption" hidden>采集批数 <input id="requestedBatches" type="number" min="1" max="10" value="1">（1～10）</label>
+      </div>
+      <div class="actions"><button id="startTask" disabled>开始采集</button><button id="stopTask" class="danger" disabled>停止</button></div>
+      <div class="progress"><div id="progressBar"></div></div>
+      <p id="taskMessage" class="message">等待开始</p>
+      <p class="notice">店铺和搜索只采列表基础数据。深度采集采用随机间隔；遇到验证会暂停并激活商品页，请手工验证后在最近任务中继续，不会自动绕过。</p>
+    </section>
+    <section class="card">
+      <div class="section-title"><h2>最近任务</h2><button id="refreshTasks" class="secondary">刷新</button></div>
+      <div class="table-wrap"><table><colgroup><col class="col-source"><col class="col-status"><col class="col-result"><col class="col-time"><col class="col-actions"></colgroup><thead><tr><th>类型/来源</th><th>状态</th><th>结果</th><th>时间</th><th>操作</th></tr></thead><tbody id="taskRows"></tbody></table></div>
+    </section>
+  </main>
+  <input id="screeningFile" type="file" accept=".xlsx" hidden>
+  <div id="toast" role="status"></div>
+  <script src="config.js"></script>
+  <script src="model.js"></script>
+  <script src="db.js"></script>
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="export.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

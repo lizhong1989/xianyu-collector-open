@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "闲鱼采集器",
+  "version": "3.0.0",
+  "description": "闲鱼单商品完整采集，以及店铺和搜索的列表筛选、选中商品深度采集。",
+  "permissions": ["storage", "activeTab", "tabs", "downloads"],
+  "host_permissions": [
+    "https://www.goofish.com/*",
+    "https://h5.m.goofish.com/*",
+    "https://*.alicdn.com/*",
+    "https://*.tbcdn.cn/*",
+    "https://*.taobaocdn.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "闲鱼采集器",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.goofish.com/item*",
+        "https://h5.m.goofish.com/item*",
+        "https://www.goofish.com/*"
+      ],
+      "js": ["config.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

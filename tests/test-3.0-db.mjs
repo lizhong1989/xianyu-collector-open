@@ -1,0 +1,28 @@
+import fs from "node:fs";
+import vm from "node:vm";
+import { indexedDB, IDBKeyRange } from "../node_modules/fake-indexeddb/build/esm/index.js";
+
+globalThis.indexedDB = indexedDB;
+globalThis.IDBKeyRange = IDBKeyRange;
+vm.runInThisContext(fs.readFileSync(new URL("../extension/db.js", import.meta.url), "utf8"));
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+await XianyuDB.saveTask({ taskId: "task-1", createdAt: "2026-08-03T00:00:00Z", status: "pending" });
+await XianyuDB.saveTask({ ...(await XianyuDB.getTask("task-1")), status: "collecting" });
+assert((await XianyuDB.getTask("task-1")).status === "collecting", "任务更新失败");
+await XianyuDB.saveItem("task-1", { itemId: "1", title: "旧标题" });
+await XianyuDB.saveItem("task-1", { itemId: "1", title: "新标题" });
+assert((await XianyuDB.getItems("task-1")).length === 1 && (await XianyuDB.getItems("task-1"))[0].title === "新标题", "商品去重写入失败");
+await XianyuDB.saveScreening("task-1", { itemId: "1", title: "筛选标题", url: "https://www.goofish.com/item?id=1" });
+assert((await XianyuDB.getScreenings("task-1")).length === 1, "快速筛选记录写入失败");
+await XianyuDB.addFailure("task-1", { itemId: "2", partIndex: 1, reason: "404" });
+assert((await XianyuDB.getFailures("task-1"))[0].reason === "404", "失败清单写入失败");
+await XianyuDB.saveAsset("task-1", 1, "1/1_001.jpg", new Blob([new Uint8Array([0xff, 0xd8, 0xff])]));
+assert((await XianyuDB.getAssets("task-1", 1)).length === 1, "分卷资源写入失败");
+await XianyuDB.clearPartAssets("task-1", 1);
+assert((await XianyuDB.getAssets("task-1", 1)).length === 0, "下载后资源释放失败");
+assert(XianyuDB.DB_NAME === "xianyuCollectorV3", "V3 未使用独立数据库");
+for (let index = 0; index < 21; index += 1) await XianyuDB.saveTask({ taskId: `retain-${index}`, createdAt: new Date(Date.UTC(2026, 7, 4, 0, 0, index)).toISOString() });
+await XianyuDB.pruneTasks(Date.UTC(2026, 7, 4, 1));
+assert((await XianyuDB.listTasks(99)).length === 20 && !(await XianyuDB.getTask("task-1")), "最近20个任务清理规则错误");
+console.log("3.0 独立 IndexedDB、任务/商品/失败/分卷资源通过。");
