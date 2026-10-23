@@ -10,22 +10,22 @@ Users pick one of three entry points from the popup:
 - Shop collection reads the visible listing cards of the current shop and exports a screening workbook.
 - Search collection reads one to ten loaded result batches and exports the same screening workbook.
 
-Shop and search collection deliberately stop at list-level fields. To collect detail data, mark rows in the `Export detail data` column of the screening workbook, then import that workbook from the local task list. Only the matching item IDs already stored in the local task are opened. Images and descriptions are fetched one item at a time with a random delay.
+Shop and search collection deliberately stop at list-level fields. To collect detail data, mark rows in the `是否导出详细数据` (export detail data) column of the screening workbook, then import that workbook from the local task list. Only the matching item IDs already stored in the local task are opened. Images and descriptions are fetched one item at a time with a random delay.
 
 ## Output
 
-Screening produces `xianyu-screening_<shop-or-search>_<timestamp>.xlsx`. Detail collection produces ZIP parts of at most 100 items:
+Screening produces `闲鱼快速筛选_<shop-or-search>_<timestamp>.xlsx`. Detail collection produces ZIP parts of at most 100 items:
 
 ```text
-xianyu-detail_<type>_<timestamp>_part001-of003.zip
-├─ listings.xlsx
+闲鱼深度采集_<type>_<timestamp>_part001-of003.zip
+├─ 商品数据.xlsx
 ├─ <item-id>_<short-title>/
-│  ├─ <item-id>_description.md
+│  ├─ <item-id>_商品文案.md
 │  └─ <item-id>_001.jpg
 └─ ...
 ```
 
-`listings.xlsx` always has three sheets: product data, failure list and task notes. Images are downloaded with at most two concurrent requests and re-encoded as standard JPEG at quality 0.92.
+Single-item collection writes the `闲鱼单商品采集_` prefix instead of `闲鱼深度采集_`. `商品数据.xlsx` always has three sheets: `商品数据` (product data), `失败清单` (failure list) and `任务说明` (task notes). Images are downloaded with at most two concurrent requests and re-encoded as standard JPEG at quality 0.92.
 
 ## Install
 
@@ -56,7 +56,10 @@ Node.js 20 or newer is required for the test suite. There is no build step; the 
 
 ## Third-party notices
 
-NaN
+The extension bundles two libraries in `extension/vendor/`:
+
+- `xlsx.full.min.js`: SheetJS Community Edition, Apache License 2.0. Full text: `extension/vendor/xlsx.LICENSE.txt`.
+- `jszip.min.js`: JSZip, dual-licensed MIT/GPLv3. Full notice: `extension/vendor/jszip.LICENSE.md`.
 
 Project source is licensed under the MIT License; see `LICENSE`.
 
