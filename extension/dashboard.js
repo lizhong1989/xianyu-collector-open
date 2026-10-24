@@ -72,6 +72,19 @@ async function exportScreening(taskId) {
   await downloadBlob(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), XianyuExport.screeningName(task));
 }
 
+function screeningFailureState(error) {
+  return {
+    status: isSecurityError(error.message) ? XianyuV3.TASK_STATUS.PAUSED_VERIFICATION : XianyuV3.TASK_STATUS.FAILED,
+    error: error.message,
+    progressText: error.message
+  };
+}
+
+async function failScreening(task, error) {
+  Object.assign(task, screeningFailureState(error));
+  await XianyuDB.saveTask(task).catch(() => {});
+}
+
 async function startScreening(existingTask = null) {
   const type = existingTask?.type || sourceType;
   const tabId = existingTask?.sourceTabId || sourceTabId;
@@ -86,10 +99,16 @@ async function startScreening(existingTask = null) {
   task.error = "";
   await XianyuDB.saveTask(task);
   message("正在读取列表，不会打开商品详情或下载图片…", 10);
-  const discovery = await runtime({
-    action: "DISCOVER_FROM_TAB", tabId,
-    options: { type: task.type, includeSold: task.includeSold, requestedBatches: task.requestedBatches }
-  });
+  let discovery;
+  try {
+    discovery = await runtime({
+      action: "DISCOVER_FROM_TAB", tabId,
+      options: { type: task.type, includeSold: task.includeSold, requestedBatches: task.requestedBatches }
+    });
+  } catch (error) {
+    await failScreening(task, error);
+    throw error;
+  }
   const unique = new Map();
   discovery.products.forEach((value) => {
     const record = XianyuV3.normalizeScreening(value);
@@ -349,7 +368,10 @@ async function renderTasks() {
       actions.push(`<button class="secondary task-action import-deep" data-id="${escapeHtml(task.taskId)}">导入并深度采集</button>`);
     }
     if (["pending", "collecting", "downloading_images", "packaging", "paused_verification", "paused_limit"].includes(task.status) && ["deep", "item"].includes(task.mode)) actions.push(`<button class="secondary task-action resume" data-id="${escapeHtml(task.taskId)}">继续任务</button>`);
-    if (task.status === "paused_verification" && task.mode === "screening") actions.push(`<button class="secondary task-action resume-screen" data-id="${escapeHtml(task.taskId)}">验证后重试筛选</button>`);
+    if (task.mode === "screening" && ["discovering", "failed", "paused_verification"].includes(task.status)) {
+      const label = task.status === "paused_verification" ? "验证后重试筛选" : (task.status === "failed" ? "重新筛选" : "继续筛选");
+      actions.push(`<button class="secondary task-action resume-screen" data-id="${escapeHtml(task.taskId)}">${label}</button>`);
+    }
     if (task.mode !== "screening" && task.partCount && (task.downloadedParts || []).length < task.partCount && (task.successCount || task.partialCount || task.failedCount)) actions.push(`<button class="secondary task-action package" data-id="${escapeHtml(task.taskId)}">下载已有结果</button>`);
     const taskSource = escapeHtml(task.sourceUrl || "-");
     return `<tr><td><strong>${escapeHtml(taskTypeName(task.type))} · ${escapeHtml(taskModeName(task))}</strong><div class="task-source" title="${taskSource}">${taskSource}</div></td><td><span class="status ${escapeHtml(task.status)}">${escapeHtml(task.status)}</span><br><small>${escapeHtml(task.progressText || task.pauseReason || "")}</small></td><td>${Number(task.successCount)}/${Number(task.partialCount)}/${Number(task.failedCount)}<br><small>发现/选中 ${Number(task.discoveredCount)}</small></td><td>${task.startedAt ? new Date(task.startedAt).toLocaleString() : "-"}</td><td><div class="task-actions">${actions.join("") || "-"}</div></td></tr>`;

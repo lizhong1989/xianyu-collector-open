@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "test": "node tests/test-3.0-model.mjs && node tests/test-3.0-content.mjs && node tests/test-3.0-db.mjs && node tests/test-3.0-export.mjs && node tests/test-3.0-manifest.mjs"
+    "test": "node tests/test-3.0-model.mjs && node tests/test-3.0-content.mjs && node tests/test-3.0-db.mjs && node tests/test-3.0-export.mjs && node tests/test-3.0-manifest.mjs && node tests/test-3.0-recovery.mjs"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.5"
