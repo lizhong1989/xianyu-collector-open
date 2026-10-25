@@ -2,6 +2,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 let listener;
+let sellerHref = null;
 const image = { currentSrc: "https://img.alicdn.com/item.jpg_800x800.jpg", src: "", dataset: {}, srcset: "" };
 function makeCard({ text, title, price, seller }) {
   return {
@@ -32,6 +33,7 @@ const context = vm.createContext({
       if (selector.includes('link[rel="canonical"]')) return { href: "https://www.goofish.com/item?id=123" };
       if (selector.includes('meta[property="og:title"]')) return { content: "结构化商品" };
       if (selector.includes('meta[property="og:image"]')) return { content: image.currentSrc };
+      if (selector.includes('a[href*="personal"]')) return sellerHref ? { href: sellerHref } : null;
       return null;
     },
     querySelectorAll(selector) {
@@ -53,6 +55,10 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 assert(context.XianyuContent.pageType() === "item", "单商品页面识别失败");
 const product = context.XianyuContent.readCurrentProduct({ sourceType: "item", sourceUrl: context.location.href });
 assert(product.itemId === "123" && product.title === "正确文案标题" && product.description === "正确文案标题\n正文第二段" && product.price === 99, "详情字段读取失败或文案标题未取详情第一段");
+assert(product.sellerId === "" && product.shopUrl === "", "缺少卖家链接时不应把商品ID回填为卖家ID");
+sellerHref = "https://www.goofish.com/personal?userId=seller-9";
+const productWithSeller = context.XianyuContent.readCurrentProduct({});
+assert(productWithSeller.sellerId === "seller-9" && productWithSeller.shopUrl === sellerHref, "有卖家链接时应读取卖家ID与店铺URL");
 assert(product.imageUrls.length === 1 && product.imageUrls[0].endsWith("item.jpg"), "原图 URL 去重/规格清理失败");
 assert(context.XianyuContent.parseCardPrice("¥1.78412人想要", 412, true) === 1.78, "小数价格与想要数粘连修正失败");
 assert(context.XianyuContent.parseCardPrice("12352人想要", 2352, true) === 1, "整数价格与想要数粘连修正失败");

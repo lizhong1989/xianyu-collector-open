@@ -182,7 +182,7 @@
       wantCount: parseCount(firstText(['[class*="want"]', '[class*="collect"]'])),
       status,
       sellerName: text(data.brand?.name || firstText(['[class*="seller-name"]', '[class*="user-name"]'])),
-      sellerId: itemIdFromUrl(sellerLink?.href || "") || text(new URL(sellerLink?.href || location.href).searchParams.get("userId")),
+      sellerId: sellerLink?.href ? (itemIdFromUrl(sellerLink.href) || text(new URL(sellerLink.href, location.href).searchParams.get("userId"))) : "",
       shopUrl: sellerLink?.href || "",
       location: firstText(['[class*="location"]', '[class*="area"]']),
       publishTime: firstText(['[class*="publish"]', '[class*="time"]']),
