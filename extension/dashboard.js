@@ -129,8 +129,15 @@ async function startScreening(existingTask = null) {
   task.completedAt = new Date().toISOString();
   task.progressText = `快速筛选完成，导出 ${allowed.length} 条`;
   await XianyuDB.saveTask(task);
-  await exportScreening(task.taskId);
-  message(task.progressText, 100);
+  try {
+    await exportScreening(task.taskId);
+    message(task.progressText, 100);
+  } catch (error) {
+    // 筛选数据已落库，下载失败不影响任务结果，保留已完成状态供重新导出。
+    task.progressText = `${task.progressText}；筛选表下载失败：${error.message}，请在最近任务中重新下载`;
+    await XianyuDB.saveTask(task);
+    message(task.progressText, 100);
+  }
 }
 
 async function collectWithRetry(ref, task) {
@@ -247,6 +254,15 @@ async function pauseTask(task, status, reason) {
 
 async function runDetailTask(task) {
   runningTask = task;
+  $("stopTask").disabled = false;
+  try {
+    await runDetailTaskBody(task);
+  } finally {
+    $("stopTask").disabled = true;
+  }
+}
+
+async function runDetailTaskBody(task) {
   const resumeProduct = task._resumeProduct;
   delete task._resumeProduct;
   task.stopRequested = false;

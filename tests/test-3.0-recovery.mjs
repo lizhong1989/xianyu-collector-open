@@ -15,18 +15,36 @@ function element(id) {
 const tasks = new Map();
 let discoveryError = null;
 let discoveryCalls = 0;
+let downloadError = null;
+let discoveryProducts = [];
+const stopStates = [];
+const resumeHandlers = new Map();
+// 按 taskRows 当前渲染结果构造可点击的任务按钮，用于验证“继续任务”入口的真实行为。
+function taskButtons(selector) {
+  const pattern = selector === ".resume"
+    ? /<button class="secondary task-action resume" data-id="([^"]+)"/g
+    : null;
+  if (!pattern) return [];
+  const html = element("taskRows").innerHTML;
+  const result = [];
+  for (const match of html.matchAll(pattern)) {
+    result.push({ dataset: { id: match[1] }, disabled: false, addEventListener(type, handler) { if (type === "click") resumeHandlers.set(match[1], handler); } });
+  }
+  return result;
+}
 const context = vm.createContext({
   console, URL, URLSearchParams, Date, Math, Promise, setImmediate, setTimeout: () => 0, clearTimeout: () => {}, Blob, globalThis: null,
   location: { search: "?sourceTabId=&type=recent" },
-  document: { getElementById: element, querySelectorAll: () => [] },
+  document: { getElementById: element, querySelectorAll: taskButtons },
   chrome: {
     runtime: {
       sendMessage: async (payload) => {
         if (payload.action === "DISCOVER_FROM_TAB") {
           discoveryCalls += 1;
           if (discoveryError) throw new Error(discoveryError);
-          return { ok: true, products: [], actualBatches: 1 };
+          return { ok: true, products: discoveryProducts, actualBatches: 1 };
         }
+        if (payload.action === "DOWNLOAD_BLOB" && downloadError) return { ok: false, error: downloadError };
         return { ok: true };
       }
     },
@@ -36,11 +54,16 @@ const context = vm.createContext({
     pruneTasks: async () => [],
     listTasks: async () => [...tasks.values()],
     getTask: async (id) => tasks.get(id),
-    saveTask: async (task) => { tasks.set(task.taskId, { ...task }); return task; },
-    getScreenings: async () => [],
+    saveTask: async (task) => { stopStates.push({ text: task.progressText, stopDisabled: element("stopTask").disabled }); tasks.set(task.taskId, { ...task }); return task; },
+    getScreenings: async () => [{ itemId: "1", url: "https://www.goofish.com/item?id=1", title: "商品", price: 9.9, status: "on_sale" }],
     getFailures: async () => [],
     saveScreening: async () => {},
-    addFailure: async () => {}
+    addFailure: async () => {},
+    getItems: async () => [],
+    saveItem: async () => {},
+    getAssets: async () => [],
+    saveAsset: async () => {},
+    clearPartAssets: async () => {}
   },
   XianyuExport: {
     screeningWorkbookBytes: () => new Uint8Array(), screeningName: () => "x.xlsx", downloadProductImages: async () => ({ results: [] }),
@@ -91,4 +114,34 @@ await context.startScreening(tasks.get("s1"));
 assert(tasks.get("s1").status === "completed" && tasks.get("s1").error === "", "失败任务重试成功后状态未恢复");
 await context.renderTasks();
 assert(!element("taskRows").innerHTML.includes('data-id="s1">重新筛选</button>'), "重试成功后不应保留重试入口");
+
+downloadError = "下载被浏览器拦截";
+discoveryProducts = [{ itemId: "1", url: "https://www.goofish.com/item?id=1", title: "商品", price: 9.9, status: "on_sale" }];
+const s5 = screeningTask("s5", "failed");
+tasks.set("s5", s5);
+await context.startScreening(s5);
+await context.renderTasks();
+assert(tasks.get("s5").status === "completed" && tasks.get("s5").successCount === 1, "筛选数据已落库时下载失败不应把任务标记为失败");
+assert(tasks.get("s5").progressText.includes("下载被浏览器拦截"), "下载失败原因必须写入任务进度");
+assert(element("taskRows").innerHTML.includes('class="secondary task-action export-screen" data-id="s5"'), "下载失败后必须保留下载筛选表入口");
+assert(element("taskRows").innerHTML.includes('class="secondary task-action import-deep" data-id="s5"'), "下载失败后必须保留导入深度采集入口");
+downloadError = null;
+
+const deepRefs = [
+  { itemId: "1", url: "https://www.goofish.com/item?id=1", title: "商品一", price: 9.9, status: "sold" },
+  { itemId: "2", url: "https://www.goofish.com/item?id=2", title: "商品二", price: 19.9, status: "sold" }
+];
+const deepTask = context.XianyuV3.makeTask({
+  taskId: "d1", type: "shop", mode: "deep", sourceUrl: "https://www.goofish.com/personal?userId=1",
+  discoveredCount: deepRefs.length, partCount: 1, refs: deepRefs, parts: [["1", "2"]]
+});
+tasks.set("d1", deepTask);
+stopStates.length = 0;
+element("stopTask").disabled = true;
+await context.renderTasks();
+assert(resumeHandlers.has("d1"), "深度采集任务缺少继续任务入口");
+await resumeHandlers.get("d1")();
+const runningStates = stopStates.filter((entry) => entry.text.includes("跳过已售出商品详情页"));
+assert(runningStates.length > 0 && runningStates.every((entry) => entry.stopDisabled === false), "继续任务开始后必须启用停止按钮");
+assert(tasks.get("d1").status === "completed" && element("stopTask").disabled === true, "继续任务结束后必须禁用停止按钮");
 console.log("3.0 筛选失败状态落库、重试入口与安全暂停恢复通过。");
