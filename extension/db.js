@@ -118,6 +118,19 @@
     async getScreenings(taskId) {
       return withStore(["screenings"], "readonly", (tx) => requestResult(tx.objectStore("screenings").index("taskId").getAll(rangeForTask(taskId))));
     },
+    async replaceScreeningResults(taskId, records, failures) {
+      return withStore(["screenings", "failures"], "readwrite", async (tx) => {
+        const screenings = tx.objectStore("screenings");
+        const screeningKeys = await requestResult(screenings.index("taskId").getAllKeys(rangeForTask(taskId)));
+        screeningKeys.forEach((key) => screenings.delete(key));
+        records.forEach((record) => screenings.put({ ...record, taskId }));
+        const failureStore = tx.objectStore("failures");
+        const failureRows = await requestResult(failureStore.index("taskId").getAll(rangeForTask(taskId)));
+        failureRows.filter((row) => row.stage === "screening").forEach((row) => failureStore.delete(row.id));
+        const createdAt = new Date().toISOString();
+        failures.forEach((failure) => failureStore.add({ taskId, createdAt, ...failure }));
+      });
+    },
     async addFailure(taskId, failure) {
       const value = { taskId, createdAt: new Date().toISOString(), ...failure };
       await withStore(["failures"], "readwrite", (tx) => requestResult(tx.objectStore("failures").add(value)));

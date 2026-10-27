@@ -119,8 +119,12 @@ async function startScreening(existingTask = null) {
   const valid = records.filter((record) => record.resultStatus === "success");
   const invalid = records.filter((record) => record.resultStatus !== "success");
   const allowed = valid;
-  for (const record of allowed) await XianyuDB.saveScreening(task.taskId, record);
-  for (const record of invalid) await XianyuDB.addFailure(task.taskId, { itemId: record.itemId, url: record.url, stage: "screening", reason: record.failureReason });
+  // 重新筛选复用同一任务ID，整体替换上一轮的筛选记录与筛选阶段失败记录，避免导出混入旧商品。
+  await XianyuDB.replaceScreeningResults(
+    task.taskId,
+    allowed,
+    invalid.map((record) => ({ itemId: record.itemId, url: record.url, stage: "screening", reason: record.failureReason }))
+  );
   task.actualBatches = discovery.actualBatches;
   task.discoveredCount = records.length;
   task.successCount = allowed.length;

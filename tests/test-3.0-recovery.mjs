@@ -17,6 +17,8 @@ let discoveryError = null;
 let discoveryCalls = 0;
 let downloadError = null;
 let discoveryProducts = [];
+const screenings = new Map();
+let screeningFailures = [];
 const stopStates = [];
 const resumeHandlers = new Map();
 // 按 taskRows 当前渲染结果构造可点击的任务按钮，用于验证“继续任务”入口的真实行为。
@@ -55,10 +57,19 @@ const context = vm.createContext({
     listTasks: async () => [...tasks.values()],
     getTask: async (id) => tasks.get(id),
     saveTask: async (task) => { stopStates.push({ text: task.progressText, stopDisabled: element("stopTask").disabled }); tasks.set(task.taskId, { ...task }); return task; },
-    getScreenings: async () => [{ itemId: "1", url: "https://www.goofish.com/item?id=1", title: "商品", price: 9.9, status: "on_sale" }],
-    getFailures: async () => [],
-    saveScreening: async () => {},
-    addFailure: async () => {},
+    getScreenings: async (taskId) => [...(screenings.get(taskId)?.values() || [])],
+    getFailures: async (taskId) => screeningFailures.filter((row) => row.taskId === taskId),
+    saveScreening: async (taskId, record) => {
+      if (!screenings.has(taskId)) screenings.set(taskId, new Map());
+      screenings.get(taskId).set(record.itemId, record);
+    },
+    addFailure: async (taskId, failure) => { screeningFailures.push({ taskId, ...failure }); },
+    replaceScreeningResults: async (taskId, records, failures) => {
+      screenings.delete(taskId);
+      screeningFailures = screeningFailures.filter((row) => row.taskId !== taskId || row.stage !== "screening");
+      screenings.set(taskId, new Map(records.map((record) => [record.itemId, record])));
+      failures.forEach((failure) => screeningFailures.push({ taskId, ...failure }));
+    },
     getItems: async () => [],
     saveItem: async () => {},
     getAssets: async () => [],
@@ -126,6 +137,21 @@ assert(tasks.get("s5").progressText.includes("下载被浏览器拦截"), "下�
 assert(element("taskRows").innerHTML.includes('class="secondary task-action export-screen" data-id="s5"'), "下载失败后必须保留下载筛选表入口");
 assert(element("taskRows").innerHTML.includes('class="secondary task-action import-deep" data-id="s5"'), "下载失败后必须保留导入深度采集入口");
 downloadError = null;
+
+// 重新筛选复用同一任务ID，上一轮的筛选记录与失败记录必须清空，否则导出会混入已消失的商品。
+screenings.set("s6", new Map([["1", { itemId: "1", url: "https://www.goofish.com/item?id=1", title: "旧商品", price: 5, status: "on_sale" }]]));
+screeningFailures = [{ taskId: "s6", itemId: "9", url: "https://www.goofish.com/item?id=9", stage: "screening", reason: "旧失败" }];
+const s6 = screeningTask("s6", "completed");
+s6.successCount = 1;
+s6.failedCount = 1;
+tasks.set("s6", s6);
+discoveryProducts = [{ itemId: "2", url: "https://www.goofish.com/item?id=2", title: "新商品", price: 8.8, status: "on_sale" }];
+await context.startScreening(s6);
+const s6Records = await context.XianyuDB.getScreenings("s6");
+assert(s6Records.length === 1 && s6Records[0].itemId === "2", `重新筛选后残留了上一轮的筛选记录：${s6Records.map((record) => record.itemId).join("、")}`);
+const s6Failures = await context.XianyuDB.getFailures("s6");
+assert(s6Failures.length === 0, `重新筛选后残留了上一轮的失败记录：${s6Failures.length} 条`);
+assert(tasks.get("s6").successCount === 1 && tasks.get("s6").failedCount === 0, "重新筛选后的计数必须与本次结果一致");
 
 const deepRefs = [
   { itemId: "1", url: "https://www.goofish.com/item?id=1", title: "商品一", price: 9.9, status: "sold" },

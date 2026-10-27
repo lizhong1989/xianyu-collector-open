@@ -17,6 +17,11 @@ await XianyuDB.saveScreening("task-1", { itemId: "1", title: "筛选标题", url
 assert((await XianyuDB.getScreenings("task-1")).length === 1, "快速筛选记录写入失败");
 await XianyuDB.addFailure("task-1", { itemId: "2", partIndex: 1, reason: "404" });
 assert((await XianyuDB.getFailures("task-1"))[0].reason === "404", "失败清单写入失败");
+await XianyuDB.replaceScreeningResults("task-1", [{ itemId: "1", title: "新筛选" }, { itemId: "3", title: "新增筛选" }], [{ itemId: "4", stage: "screening", reason: "缺字段" }]);
+const replacedScreenings = await XianyuDB.getScreenings("task-1");
+assert(replacedScreenings.length === 2 && replacedScreenings.every((row) => row.taskId === "task-1"), "筛选记录整体替换后数量或任务归属错误");
+const replacedFailures = await XianyuDB.getFailures("task-1");
+assert(replacedFailures.length === 2 && replacedFailures.some((row) => row.reason === "404") && replacedFailures.some((row) => row.stage === "screening"), "整体替换不应删除其他阶段的失败记录");
 await XianyuDB.saveAsset("task-1", 1, "1/1_001.jpg", new Blob([new Uint8Array([0xff, 0xd8, 0xff])]));
 assert((await XianyuDB.getAssets("task-1", 1)).length === 1, "分卷资源写入失败");
 await XianyuDB.clearPartAssets("task-1", 1);
